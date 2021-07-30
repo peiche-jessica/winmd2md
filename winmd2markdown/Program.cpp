@@ -302,22 +302,39 @@ void Program::process_class(output& ss, const TypeDef& type, string kind) {
   }
   PrintOptionalSections(MemberType::Type, ss, type);
 
+  using property_entry_t = pair<string_view, const Property>;
+  std::list<property_entry_t> p_sorted;
+  for (auto const& prop : type.PropertyList()) {
+    if (!opts->outputExperimental && IsExperimental(prop)) continue;
+    p_sorted.push_back(make_pair<string_view, const Property>(prop.Name(), Property(prop)));
+  }
+  p_sorted.sort([](const property_entry_t& x, const property_entry_t& y) { return x.first < y.first; });
+
+  using method_entry_t = pair<string_view, const MethodDef>;
+  std::list<method_entry_t> m_sorted;
+  for (auto const& method : type.MethodList()) {
+    if (!opts->outputExperimental && IsExperimental(method)) continue;
+    m_sorted.push_back(make_pair<string_view, const MethodDef>(method.Name(), MethodDef(method)));
+  }
+  m_sorted.sort([](const method_entry_t& x, const method_entry_t& y) { return x.first < y.first; });
+
+  using event_entry_t = pair<string_view, const Event>;
+  std::list<event_entry_t> e_sorted;
+  for (auto const& evt : type.EventList()) {
+    if (!opts->outputExperimental && IsExperimental(evt)) continue;
+    e_sorted.push_back(make_pair<string_view, const Event>(evt.Name(), Event(evt)));
+  }
+  e_sorted.sort([](const event_entry_t& x, const event_entry_t& y) { return x.first < y.first; });
+
   // Print properties
   {
-    using entry_t = pair<string_view, const Property>;
-    std::list<entry_t> sorted;
-    for (auto const& prop : type.PropertyList()) {
-      if (!opts->outputExperimental && IsExperimental(prop)) continue;
-      sorted.push_back(make_pair<string_view, const Property>(prop.Name(), Property(prop)));
-    }
-    sorted.sort([](const entry_t& x, const entry_t& y) { return x.first < y.first; });
-    if (!sorted.empty()) {
-      auto ps = ss.StartSection("Properties");
+    if (!p_sorted.empty()) {
+      auto ps = ss.StartSection("Properties\n");
       if (opts->propertiesAsTable) {
         ss << "|   | Name|Type|Description|" << "\n"
           << "|---|-----|----|-----------|" << "\n";
       }
-      for (auto const& prop : sorted) {
+      for (auto const& prop : p_sorted) {
         process_property(ss, prop.second);
       }
     }
@@ -326,19 +343,10 @@ void Program::process_class(output& ss, const TypeDef& type, string kind) {
 
   // Print methods and constructors
   {
-
-    using entry_t = pair<string_view, const MethodDef>;
-    std::list<entry_t> sorted;
-    for (auto const& method : type.MethodList()) {
-      if (!opts->outputExperimental && IsExperimental(method)) continue;
-      sorted.push_back(make_pair<string_view, const MethodDef>(method.Name(), MethodDef(method)));
-    }
-    sorted.sort([](const entry_t& x, const entry_t& y) { return x.first < y.first; });
-
-    if (std::find_if(sorted.begin(), sorted.end(), [](auto const& x) { return x.first == ctorName; }) != sorted.end())
+    if (std::find_if(m_sorted.begin(), m_sorted.end(), [](auto const& x) { return x.first == ctorName; }) != m_sorted.end())
     {
       auto ms = ss.StartSection("Constructors");
-      for (auto const& method : sorted) {
+      for (auto const& method : m_sorted) {
         if (method.second.SpecialName() && (method.first == ctorName)) {
           process_method(ss, method.second, type.TypeName());
         }
@@ -348,10 +356,10 @@ void Program::process_class(output& ss, const TypeDef& type, string kind) {
       }
     }
     ss << "\n";
-    if (std::find_if(sorted.begin(), sorted.end(), [](auto const& x) { return !x.second.SpecialName(); }) != sorted.end())
+    if (std::find_if(m_sorted.begin(), m_sorted.end(), [](auto const& x) { return !x.second.SpecialName(); }) != m_sorted.end())
     {
-      auto ms = ss.StartSection("Methods");
-      for (auto const& method : sorted) {
+      auto ms = ss.StartSection("Methods\n");
+      for (auto const& method : m_sorted) {
         if (method.second.SpecialName()) {
 #ifdef DEBUG
           std::cout << "Skipping special method: " << string(method.second.Name()) << "\n";
@@ -368,17 +376,9 @@ void Program::process_class(output& ss, const TypeDef& type, string kind) {
   ss << "\n";
   // Print events
   {
-    using entry_t = pair<string_view, const Event>;
-    std::list<entry_t> sorted;
-    for (auto const& evt : type.EventList()) {
-      if (!opts->outputExperimental && IsExperimental(evt)) continue;
-      sorted.push_back(make_pair<string_view, const Event>(evt.Name(), Event(evt)));
-    }
-    sorted.sort([](const entry_t& x, const entry_t& y) { return x.first < y.first; });
-
-    if (!sorted.empty()) {
-      auto es = ss.StartSection("Events");
-      for (auto const& evt : sorted) {
+    if (!e_sorted.empty()) {
+      auto es = ss.StartSection("Events\n");
+      for (auto const& evt : e_sorted) {
         auto n = string(evt.first);
         auto ees = ss.StartSection("`" + string(evt.first) + "`");
         auto methodList = type.MethodList();
