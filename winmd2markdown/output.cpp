@@ -45,8 +45,13 @@ keywords: webview2, webview, winrt, win32, edge, CoreWebView2, CoreWebView2Contr
   }
 
   *currentFile << "---\n\n";
-  *currentFile << "Kind: " << code(kind) << "\n\n";
-  return type_helper(*this);
+  string header = string{ name };
+  if (kind == "class") {
+    header = "runtimeClass " + header;
+  } else {
+    header = string(kind) + " " + header;
+  }
+  return type_helper(*this, header);
 }
 
 output::section_helper output::StartSection(const std::string& a) {
@@ -61,7 +66,7 @@ output::section_helper::section_helper(output& out, string s) : o(out) {
   }
 }
 
-output::type_helper::type_helper(output& out) : o(out), sh(o.StartSection("")) {};
+output::type_helper::type_helper(output& out, std::string kind) : o(out), sh(o.StartSection(kind + "\n")) {};
 
 void output::StartNamespace(std::string_view namespaceName) {
   currentXml = intellisense_xml(namespaceName);
