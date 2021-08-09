@@ -690,10 +690,17 @@ void Program::write_index(string_view namespaceName, const cache::namespace_memb
 
   const auto apiVersionPrefix = (opts->apiVersion != "") ? ("version-" + opts->apiVersion + "-") : "";
 
+  // Adding ms metadata
   index << R"(---
-id: )" << apiVersionPrefix << R"(Native-API-Reference
-title: namespace )" << namespaceName << R"(
-sidebar_label: Full reference
+description: Explore all classes and interfaces of the Microsoft.Web.WebView2.Core namespace.
+title: Microsoft.Web.WebView2.Core Namespace
+author: MSEdgeTeam
+ms.author: msedgedevrel
+ms.date: <!--DATE-->
+ms.topic: reference
+ms.prod: microsoft-edge
+ms.technology: webview
+keywords: IWebView2, IWebView2WebView, webview2, webview, winrt, Microsoft.Web.WebView2.Core, edge, ICoreWebView2, ICoreWebView2Controller, ICoreWebView2Interop, browser control, edge html
 )";
 
   if (opts->apiVersion != "") {
@@ -703,35 +710,36 @@ sidebar_label: Full reference
   index << R"(
 ---
 
+# Microsoft.Web.WebView2.Core Namespace
 )";
 
-  index << "## Enums" << "\n";
-  for (auto const& t : ns.enums) {
-    if (!opts->outputExperimental && IsExperimental(t)) continue;
-    index << link(t.TypeName()) << "\n";
-  }
-
-  index << "## Interfaces" << "\n";
-  for (auto const& t : ns.interfaces) {
-    if (!opts->outputExperimental && IsExperimental(t)) continue;
-    if (shouldSkipInterface(t)) continue;
-    index << link(t.TypeName()) << "\n";
-  }
-
-  index << "## Structs" << "\n";
-  for (auto const& t : ns.structs) {
-    if (!opts->outputExperimental && IsExperimental(t)) continue;
-    index << link(t.TypeName()) << "\n";
-  }
-
-  index << "## Classes" << "\n";
+  index << "\n## Classes\n\n";
 
   for (auto const& t : ns.classes) {
     if (!opts->outputExperimental && IsExperimental(t)) continue;
     index << link(t.TypeName()) << "\n";
   }
 
-  index << "## Delegates" << "\n";
+  index << "\n## Interfaces\n\n";
+  for (auto const& t : ns.interfaces) {
+    if (!opts->outputExperimental && IsExperimental(t)) continue;
+    if (shouldSkipInterface(t)) continue;
+    index << link(t.TypeName()) << "\n";
+  }
+
+  index << "\n## Enums\n\n";
+  for (auto const& t : ns.enums) {
+    if (!opts->outputExperimental && IsExperimental(t)) continue;
+    index << link(t.TypeName()) << "\n";
+  }
+
+  index << "\n## Structs\n\n";
+  for (auto const& t : ns.structs) {
+    if (!opts->outputExperimental && IsExperimental(t)) continue;
+    index << link(t.TypeName()) << "\n";
+  }
+
+  index << "\n## Delegates\n\n";
   for (auto const& t : ns.delegates) {
     if (!opts->outputExperimental && IsExperimental(t)) continue;
     index << link(t.TypeName()) << "\n";
