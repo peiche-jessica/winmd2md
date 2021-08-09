@@ -14,7 +14,7 @@ The output is saved to the `out` folder under the current folder.
    /fieldsAsTable         Output Fields as a table
    /? or /help            Display help
    /sdkVersion            SDK version number to use (e.g. 10.0.18362.0)
-   /fileSuffix            File suffix to append to each generated markdown file. Default is "-api-windows"
+   /fileSuffix            File suffix to append to each generated markdown file. Default is empty string
    /outputDirectory       Directory where output will be written. Default is "out"
    /printReferenceGraph   Displays the list of types that reference each type
 ```

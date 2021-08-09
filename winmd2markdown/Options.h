@@ -21,7 +21,7 @@ struct options
   bool help{ false };
   std::string sdkVersion;
   std::string winMDPath;
-  std::string fileSuffix{ "-api-windows" };
+  std::string fileSuffix{ "" };
   std::string outputDirectory{ "out" };
   bool printReferenceGraph{ false };
   std::string apiVersion;
