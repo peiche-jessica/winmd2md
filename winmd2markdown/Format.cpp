@@ -176,7 +176,7 @@ string Formatter::ToString(const coded_index<TypeDefOrRef>& tdr, bool toCode) {
       const auto& ac = s.GenericArgCount();
       const auto& outerType = std::string(ToString(p, false));
       const auto& prettyOuterType = outerType.substr(1, outerType.find('`') - 1);
-      string result = typeToMarkdown(p.TypeRef().TypeNamespace(), prettyOuterType, true, "-" + std::to_string(ac)) + "<";
+      string result = typeToMarkdown(p.TypeRef().TypeNamespace(), prettyOuterType, false, "-" + std::to_string(ac)) + "<";
 
       bool first = true;
       for (auto const& a : s.GenericArgs())
