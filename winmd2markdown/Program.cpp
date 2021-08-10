@@ -1,5 +1,6 @@
 #include <string_view>
 #include <sstream>
+#include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/replace.hpp>
 
 #include "Program.h"
@@ -43,6 +44,11 @@ template<typename T> string GetContentAttributeValue(string attrname, const T& t
   return {};
 }
 
+string GetSummary(string content) {
+  vector<string> v1;
+  boost::algorithm::split(v1, content, [](char c){ return c == '\n'; });
+  return v1[0];
+}
 
 template<typename T>
 string GetDocString(const T& t) {
@@ -51,6 +57,7 @@ string GetDocString(const T& t) {
   boost::replace_all(sane, "\\r", "\r");
   boost::replace_all(sane, "\r\n", "\n");
   boost::replace_all(sane, "/-/", "//");
+  boost::replace_all(sane, "\\\"", "\"");
 
   return sane;
 }
@@ -219,6 +226,7 @@ void Program::process(std::string_view namespaceName, const cache::namespace_mem
     md << R"(
 
 ## Referenced by
+
 )";
     std::vector<std::string> sorted;
     std::for_each(backReference.second.begin(), backReference.second.end(), [&sorted](auto& x) { sorted.push_back(string(x.TypeName())); });
@@ -326,6 +334,28 @@ void Program::process_class(output& ss, const TypeDef& type, string kind) {
   }
   e_sorted.sort([](const event_entry_t& x, const event_entry_t& y) { return x.first < y.first; });
 
+  // Print summary section
+  {
+    if (!p_sorted.empty() || !m_sorted.empty() || !e_sorted.empty()) {
+      ss.StartSection("Summary\n");
+      ss << "Members|Description" << "\n";
+      ss << "--|--" << "\n";
+      for (auto const& prop : p_sorted) {
+        process_property(ss, prop.second, true);
+      }
+      for (auto const& method : m_sorted) {
+        // Skip property getter/setter and add_/remove_ event handlers
+        if (!method.second.SpecialName()) {
+          process_method(ss, method.second, "", true);
+        }
+      }
+      for (auto const& evt : e_sorted) {
+        process_event(ss, type, evt.second, true);
+      }
+      ss << "\n";
+    }
+  }
+
   // Print properties
   {
     if (!p_sorted.empty()) {
@@ -379,13 +409,7 @@ void Program::process_class(output& ss, const TypeDef& type, string kind) {
     if (!e_sorted.empty()) {
       auto es = ss.StartSection("Events\n");
       for (auto const& evt : e_sorted) {
-        auto n = string(evt.first);
-        auto ees = ss.StartSection("`" + string(evt.first) + "`");
-        auto methodList = type.MethodList();
-        auto addMethod = FindMethodInType(type, "add_" + n);
-        PrintOptionalSections(MemberType::Event, ss, addMethod);
-        ss << "Type: " << format.ToString(evt.second.EventType()) << "\n";
-        AddReference(evt.second.EventType(), type);
+        process_event(ss, type, evt.second);
       }
     }
   }
@@ -441,9 +465,26 @@ void Program::AddReference(const TypeSig& prop, const TypeDef& owningType) {
   }
 }
 
-void Program::process_property(output& ss, const Property& prop) {
+void Program::process_event(output& ss, const TypeDef& classType, const Event& evt, bool asTable) {
+  auto eventName = string(evt.Name());
+  auto methodList = classType.MethodList();
+  auto addMethod = FindMethodInType(classType, "add_" + eventName);
+  auto doc = format.ResolveReferences(GetDocString(addMethod), &Formatter::MakeMarkdownReference);
+  if (asTable) {
+    auto summary = GetSummary(doc);
+    ss << format.MakeMarkdownReference("", "", eventName) << " | " << summary << "\n";
+  }
+  else {
+    auto sec = ss.StartSection(eventName + "\n");
+    PrintOptionalSections(MemberType::Event, ss, addMethod);
+    ss << "Type: " << format.ToString(evt.EventType()) << "\n\n";
+    AddReference(evt.EventType(), classType);
+  }
+}
+
+void Program::process_property(output& ss, const Property& prop, bool asTable) {
   const auto& type = format.GetType(prop.Type().Type());
-  const auto& name = code(prop.Name());
+  const auto& name = prop.Name();
 
   const auto& owningType = prop.Parent();
   const auto propName = string(prop.Name());
@@ -462,24 +503,28 @@ void Program::process_property(output& ss, const Property& prop) {
   }
 
   auto default_val = GetDocDefault(prop);
-  auto cppAttrs = (isStatic ? (code("static") + "   ") : "") + (readonly ? (code("readonly") + " ") : "");
-  if (opts->propertiesAsTable) {
-    auto description = GetDocString(prop);
-    description = format.ResolveReferences(description, &Formatter::MakeMarkdownReference);
+  string cppAttrs = (isStatic ? "static   " : "");
+  cppAttrs += (readonly ? "readonly " : "");
+  auto description = GetDocString(prop);
+  description = format.ResolveReferences(description, &Formatter::MakeMarkdownReference);
+  if (asTable) {
+    auto summary = GetSummary(description);
+    ss << format.MakeMarkdownReference("", "", propName) << " | " << summary << "\n";
+  } else if (opts->propertiesAsTable) {
     if (!default_val.empty()) {
       description += "<br/>default: " + default_val;
     }
-    ss << "| " << cppAttrs << "| " << name << " | " << type << " | " << description << " | \n";
+    ss << "| " << cppAttrs << "| " << code(name) << " | " << type << " | " << description << " | \n";
   }
   else {
-    auto sec = ss.StartSection(propName);
-    ss << cppAttrs << " " << type << " " << name << "\n\n";
+    auto sec = ss.StartSection(propName + "\n");
+    ss << "> " << cppAttrs << " " << type << " " << name << "\n\n";
     PrintOptionalSections(MemberType::Property, ss, prop, std::make_optional(getter));
 
   }
 }
 
-void Program::process_method(output& ss, const MethodDef& method, string_view realName) {
+void Program::process_method(output& ss, const MethodDef& method, string_view realName, bool asTable) {
   std::string returnType;
   const auto& signature = method.Signature();
   if (realName.empty()) {
@@ -496,10 +541,16 @@ void Program::process_method(output& ss, const MethodDef& method, string_view re
   }
   const auto& flags = method.Flags();
   const string_view name = realName.empty() ? method.Name() : realName;
+  const std::string method_name = string{ name };
+  if (asTable) {
+      auto summary = GetSummary(format.ResolveReferences(GetDocString(method), &Formatter::MakeMarkdownReference));
+      ss << format.MakeMarkdownReference("", "", method_name) << " | " << summary << "\n";
+    return;
+  }
   stringstream sstr;
-  sstr << (flags.Static() ? (code("static") + " ") : "")
+  sstr << "> " << (flags.Static() ? "static " : "")
     //    << (flags.Abstract() ? "abstract " : "")
-    << returnType << " **" << code(name) << "**(";
+    << returnType << " " << name << "(";
 
   int i = 0;
 
@@ -523,8 +574,7 @@ void Program::process_method(output& ss, const MethodDef& method, string_view re
     i++;
   }
   sstr << ")";
-  const std::string method_name = string{ name };
-  auto st = ss.StartSection(method_name);
+  auto st = ss.StartSection(method_name + "\n");
   ss << sstr.str() << "\n\n";
 
   PrintOptionalSections(MemberType::Method, ss, method);
