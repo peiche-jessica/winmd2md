@@ -12,9 +12,11 @@ using namespace winmd::reader;
 string Formatter::MakeMarkdownReference(const string& ns, const string& type, const string& propertyName) {
   string anchor = type;
   string link = type;
+  std::transform(link.begin(), link.end(), link.begin(), ::tolower);
   if (ns != program->currentNamespace && !ns.empty()) {
     return typeToMarkdown(ns, type + (!propertyName.empty() ? ("." + propertyName) : ""), true);
   }
+  link += link.empty() ? "" : ".md";
   if (!propertyName.empty()) {
     anchor += (!type.empty() ? "." : "") + propertyName;
     auto p = propertyName;
@@ -48,7 +50,9 @@ std::string code(std::string_view v) {
 
 string link(string_view n) {
   //if (IsBuiltInType(n)) return string(n);
-  return "- [" + code(n) + "](" + string(n) + ")";
+  string link = string(n);
+  std::transform(link.begin(), link.end(), link.begin(), ::tolower);
+  return "- [" + string(n) + "](" + link + ".md)";
 }
 
 bool isIdentifierChar(char x) {
@@ -130,7 +134,8 @@ std::string Formatter::typeToMarkdown(std::string_view ns, std::string type, boo
       if (ns._Starts_with(ns_prefix)) {
         // if it is a Windows type use MSDN, e.g.
         // https://docs.microsoft.com/uwp/api/Windows.UI.Xaml.Automation.ExpandCollapseState
-        const std::string docsURL = "https://docs.microsoft.com/uwp/api/";
+        // Use site relative url
+        const std::string docsURL = "/uwp/api/";
         return "[" + code + type + code + "](" + docsURL + string(ns) + "." + type + urlSuffix + ")";
       }
     }

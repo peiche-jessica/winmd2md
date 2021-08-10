@@ -1,5 +1,6 @@
 #include <sstream>
 #include <boost/algorithm/string/replace.hpp>
+#include <boost/algorithm/string/case_conv.hpp>
 
 #include "Options.h"
 
@@ -15,7 +16,7 @@ output::output(Program* p) : program(p) {
 
 filesystem::path output::GetFileForType(std::string_view name) {
   std::filesystem::path out(program->opts->outputDirectory);
-  const string filename = std::string(name) + program->opts->fileSuffix + ".md";
+  const string filename = boost::algorithm::to_lower_copy(std::string(name)) + program->opts->fileSuffix + ".md";
   if (!std::filesystem::exists(out)) {
     std::error_code ec;
     std::filesystem::create_directory(out, ec); // ignore ec
