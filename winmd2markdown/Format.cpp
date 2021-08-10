@@ -14,7 +14,7 @@ string Formatter::MakeMarkdownReference(const string& ns, const string& type, co
   string link = type;
   std::transform(link.begin(), link.end(), link.begin(), ::tolower);
   if (ns != program->currentNamespace && !ns.empty()) {
-    return typeToMarkdown(ns, type + (!propertyName.empty() ? ("." + propertyName) : ""), true);
+    return typeToMarkdown(ns, type + (!propertyName.empty() ? ("." + propertyName) : ""), false);
   }
   link += link.empty() ? "" : ".md";
   if (!propertyName.empty()) {
@@ -33,10 +33,10 @@ string Formatter::MakeMarkdownReference(const string& ns, const string& type, co
     if (dot != -1) {
       auto ns = type.substr(0, dot);
       auto typeName = type.substr(dot + 1);
-      return typeToMarkdown(ns, typeName, true);
+      return typeToMarkdown(ns, typeName, false);
     }
   }
-  return "[" + code(anchor) + "](" + link + ")";
+  return "[" + anchor + "](" + link + ")";
 }
 
 string Formatter::MakeXmlReference(const string& ns, const string& type, const string& propertyName) {
@@ -127,7 +127,9 @@ std::string Formatter::typeToMarkdown(std::string_view ns, std::string type, boo
   string code = toCode ? "`" : "";
   if (ns.empty()) return type; // basic type
   else if (ns == program->currentNamespace) {
-    return "[" + code + type + code + "](" + type + ")";
+    string link = type;
+    std::transform(link.begin(), link.end(), link.begin(), ::tolower);
+    return "[" + code + type + code + "](" + link + ".md)";
   }
   else {
     for (const auto& ns_prefix : docs_msft_com_namespaces) {

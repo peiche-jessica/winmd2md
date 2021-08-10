@@ -21,7 +21,7 @@ struct Formatter
   std::string GetNamespacePrefix(std::string_view ns);
 
   static std::string_view ToString(winmd::reader::ElementType elementType);
-  std::string ToString(const winmd::reader::coded_index<winmd::reader::TypeDefOrRef>& tdr, bool toCode = true);
+  std::string ToString(const winmd::reader::coded_index<winmd::reader::TypeDefOrRef>& tdr, bool toCode = false);
 
 
   std::string GetType(const winmd::reader::TypeSig& type);
