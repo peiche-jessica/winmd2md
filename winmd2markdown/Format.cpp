@@ -64,8 +64,15 @@ string Formatter::ResolveReferences(string sane, Converter converter) {
   stringstream ss;
 
   for (size_t input = 0; input < sane.length(); input++) {
+    // Reserve $ as a special end-of-reference charater
+    // It's useful when we have something like @TypeName$.NON_PROPERTY_NAME
+    // where NON_PROPERTY_NAME is not an anchor (e.g. @Enum.EnumValue where
+    // there's no anchor for Enumvalues)
+    if (sane[input] == '$') {
+      continue;
+    }
     if (sane[input] == '@') {
-      auto firstNonIdentifier = std::find_if(sane.begin() + input + 1, sane.end(), [](auto& x) { return !isIdentifierChar(x); });
+      auto firstNonIdentifier = std::find_if(sane.begin() + input + 1, sane.end(), [](auto& x) { return !isIdentifierChar(x) || x == '$'; });
       if (firstNonIdentifier != sane.begin() && *(firstNonIdentifier - 1) == '.') {
         firstNonIdentifier--;
       }
