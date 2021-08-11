@@ -121,7 +121,7 @@ bool Program::shouldSkipInterface(const IT /*TypeDef*/& interfaceEntry) {
 /// <param name="ss"></param>
 /// <param name="type"></param>
 /// <param name="fallback_type"></param>
-template<typename T, typename F = nullptr_t>
+template<typename T, typename F/* = nullptr_t*/>
 void Program::PrintOptionalSections(MemberType mt, output& ss, const T& type, std::optional<F> fallback_type)
 {
   if (IsExperimental(type)) {

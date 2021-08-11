@@ -183,7 +183,7 @@ string Formatter::ToString(const coded_index<TypeDefOrRef>& tdr, bool toCode) {
       const auto& ac = s.GenericArgCount();
       const auto& outerType = std::string(ToString(p, false));
       const auto& prettyOuterType = outerType.substr(1, outerType.find('`') - 1);
-      string result = typeToMarkdown(p.TypeRef().TypeNamespace(), prettyOuterType, false, "-" + std::to_string(ac)) + "<";
+      string result = typeToMarkdown(p.TypeRef().TypeNamespace(), prettyOuterType, false, "-" + std::to_string(ac)) + "&lt;";
 
       bool first = true;
       for (auto const& a : s.GenericArgs())
@@ -195,7 +195,7 @@ string Formatter::ToString(const coded_index<TypeDefOrRef>& tdr, bool toCode) {
         result += x;
         first = false;
       }
-      result += ">";
+      result += "&gt;";
       return result;
     }
     default:
@@ -228,7 +228,7 @@ string Formatter::GetType(const TypeSig::value_type& valueType)
     const auto& outerType = std::string(ToString(genericType, false));
     stringstream ss;
     const auto& prettyOuterType = outerType.substr(1, outerType.find('`') - 1);
-    ss << typeToMarkdown(genericType.TypeRef().TypeNamespace(), prettyOuterType, true, "-" + std::to_string(gt.GenericArgCount())) << '<';
+    ss << typeToMarkdown(genericType.TypeRef().TypeNamespace(), prettyOuterType, true, "-" + std::to_string(gt.GenericArgCount())) << "&lt;";
 
     bool first = true;
 
@@ -245,7 +245,7 @@ string Formatter::GetType(const TypeSig::value_type& valueType)
       // This indicates that we relied on a temporary that got deleted when chaining several calls
       throw std::invalid_argument("you found a bug - we probably deleted an object we shouldn't (when doing a.b().c().d())");
     }
-    ss << '>';
+    ss << "&gt;";
     return ss.str();
   }
   case 4: // GenericMethodTypeIndex
