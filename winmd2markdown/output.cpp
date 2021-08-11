@@ -34,7 +34,7 @@ output::type_helper output::StartType(std::string_view name, std::string_view ki
     "title: " << name << R"(
 author: MSEdgeTeam
 ms.author: msedgedevrel
-ms.date: <!--DATE-->
+ms.date: )" << program->opts->msDate << R"(
 ms.topic: reference
 ms.prod: microsoft-edge
 ms.technology: webview

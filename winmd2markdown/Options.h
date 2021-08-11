@@ -26,6 +26,7 @@ struct options
   bool printReferenceGraph{ false };
   std::string apiVersion;
   bool strictReferences{ false };
+  std::string msDate{ "<!--DATE-->" };
 
   options(const std::vector<std::string>& v) {
     auto const opts = get_option_names();

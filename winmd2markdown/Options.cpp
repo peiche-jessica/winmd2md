@@ -14,8 +14,9 @@ const std::vector<option>  get_option_names() {
     { "apiVersion", "API version number to use (e.g. 0.64). This is the version that the WinMD corresponds to.", STRING_SWITCH_SETTER(apiVersion) },
     { "fileSuffix", "File suffix to append to each generated markdown file. Default is empty string", STRING_SWITCH_SETTER(fileSuffix) },
     { "outputDirectory", "Directory where output will be written. Default is \"out\"", STRING_SWITCH_SETTER(outputDirectory) },
-    { "printReferenceGraph", "Displays the list of types that reference each type", BOOL_SWITCH_SETTER(printReferenceGraph )},
-    { "strictReferences", "Produce an error when failing to resolve a reference", BOOL_SWITCH_SETTER(strictReferences)},
+    { "printReferenceGraph", "Displays the list of types that reference each type", BOOL_SWITCH_SETTER(printReferenceGraph) },
+    { "strictReferences", "Produce an error when failing to resolve a reference", BOOL_SWITCH_SETTER(strictReferences) },
+    { "msDate", "ms.date to use in header", STRING_SWITCH_SETTER(msDate) },
   };
   return option_names;
 }
