@@ -106,7 +106,7 @@ private:
   struct type_helper {
     output& o;
     section_helper sh;
-    type_helper(output& out);
+    type_helper(output& out, std::string kind);
     ~type_helper() {
       o.EndType();
     }

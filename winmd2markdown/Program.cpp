@@ -1,5 +1,6 @@
 #include <string_view>
 #include <sstream>
+#include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/replace.hpp>
 
 #include "Program.h"
@@ -43,6 +44,11 @@ template<typename T> string GetContentAttributeValue(string attrname, const T& t
   return {};
 }
 
+string GetSummary(string content) {
+  vector<string> v1;
+  boost::algorithm::split(v1, content, [](char c){ return c == '\n'; });
+  return v1[0];
+}
 
 template<typename T>
 string GetDocString(const T& t) {
@@ -51,6 +57,7 @@ string GetDocString(const T& t) {
   boost::replace_all(sane, "\\r", "\r");
   boost::replace_all(sane, "\r\n", "\n");
   boost::replace_all(sane, "/-/", "//");
+  boost::replace_all(sane, "\\\"", "\"");
 
   return sane;
 }
@@ -114,7 +121,7 @@ bool Program::shouldSkipInterface(const IT /*TypeDef*/& interfaceEntry) {
 /// <param name="ss"></param>
 /// <param name="type"></param>
 /// <param name="fallback_type"></param>
-template<typename T, typename F = nullptr_t>
+template<typename T, typename F/* = nullptr_t*/>
 void Program::PrintOptionalSections(MemberType mt, output& ss, const T& type, std::optional<F> fallback_type)
 {
   if (IsExperimental(type)) {
@@ -219,6 +226,7 @@ void Program::process(std::string_view namespaceName, const cache::namespace_mem
     md << R"(
 
 ## Referenced by
+
 )";
     std::vector<std::string> sorted;
     std::for_each(backReference.second.begin(), backReference.second.end(), [&sorted](auto& x) { sorted.push_back(string(x.TypeName())); });
@@ -302,22 +310,61 @@ void Program::process_class(output& ss, const TypeDef& type, string kind) {
   }
   PrintOptionalSections(MemberType::Type, ss, type);
 
+  using property_entry_t = pair<string_view, const Property>;
+  std::list<property_entry_t> p_sorted;
+  for (auto const& prop : type.PropertyList()) {
+    if (!opts->outputExperimental && IsExperimental(prop)) continue;
+    p_sorted.push_back(make_pair<string_view, const Property>(prop.Name(), Property(prop)));
+  }
+  p_sorted.sort([](const property_entry_t& x, const property_entry_t& y) { return x.first < y.first; });
+
+  using method_entry_t = pair<string_view, const MethodDef>;
+  std::list<method_entry_t> m_sorted;
+  for (auto const& method : type.MethodList()) {
+    if (!opts->outputExperimental && IsExperimental(method)) continue;
+    m_sorted.push_back(make_pair<string_view, const MethodDef>(method.Name(), MethodDef(method)));
+  }
+  m_sorted.sort([](const method_entry_t& x, const method_entry_t& y) { return x.first < y.first; });
+
+  using event_entry_t = pair<string_view, const Event>;
+  std::list<event_entry_t> e_sorted;
+  for (auto const& evt : type.EventList()) {
+    if (!opts->outputExperimental && IsExperimental(evt)) continue;
+    e_sorted.push_back(make_pair<string_view, const Event>(evt.Name(), Event(evt)));
+  }
+  e_sorted.sort([](const event_entry_t& x, const event_entry_t& y) { return x.first < y.first; });
+
+  // Print summary section
+  {
+    if (!p_sorted.empty() || !m_sorted.empty() || !e_sorted.empty()) {
+      ss.StartSection("Summary\n");
+      ss << "Members|Description" << "\n";
+      ss << "--|--" << "\n";
+      for (auto const& prop : p_sorted) {
+        process_property(ss, prop.second, true);
+      }
+      for (auto const& method : m_sorted) {
+        // Skip property getter/setter and add_/remove_ event handlers
+        if (!method.second.SpecialName()) {
+          process_method(ss, method.second, "", true);
+        }
+      }
+      for (auto const& evt : e_sorted) {
+        process_event(ss, type, evt.second, true);
+      }
+      ss << "\n";
+    }
+  }
+
   // Print properties
   {
-    using entry_t = pair<string_view, const Property>;
-    std::list<entry_t> sorted;
-    for (auto const& prop : type.PropertyList()) {
-      if (!opts->outputExperimental && IsExperimental(prop)) continue;
-      sorted.push_back(make_pair<string_view, const Property>(prop.Name(), Property(prop)));
-    }
-    sorted.sort([](const entry_t& x, const entry_t& y) { return x.first < y.first; });
-    if (!sorted.empty()) {
-      auto ps = ss.StartSection("Properties");
+    if (!p_sorted.empty()) {
+      auto ps = ss.StartSection("Properties\n");
       if (opts->propertiesAsTable) {
         ss << "|   | Name|Type|Description|" << "\n"
           << "|---|-----|----|-----------|" << "\n";
       }
-      for (auto const& prop : sorted) {
+      for (auto const& prop : p_sorted) {
         process_property(ss, prop.second);
       }
     }
@@ -326,19 +373,10 @@ void Program::process_class(output& ss, const TypeDef& type, string kind) {
 
   // Print methods and constructors
   {
-
-    using entry_t = pair<string_view, const MethodDef>;
-    std::list<entry_t> sorted;
-    for (auto const& method : type.MethodList()) {
-      if (!opts->outputExperimental && IsExperimental(method)) continue;
-      sorted.push_back(make_pair<string_view, const MethodDef>(method.Name(), MethodDef(method)));
-    }
-    sorted.sort([](const entry_t& x, const entry_t& y) { return x.first < y.first; });
-
-    if (std::find_if(sorted.begin(), sorted.end(), [](auto const& x) { return x.first == ctorName; }) != sorted.end())
+    if (std::find_if(m_sorted.begin(), m_sorted.end(), [](auto const& x) { return x.first == ctorName; }) != m_sorted.end())
     {
       auto ms = ss.StartSection("Constructors");
-      for (auto const& method : sorted) {
+      for (auto const& method : m_sorted) {
         if (method.second.SpecialName() && (method.first == ctorName)) {
           process_method(ss, method.second, type.TypeName());
         }
@@ -348,10 +386,10 @@ void Program::process_class(output& ss, const TypeDef& type, string kind) {
       }
     }
     ss << "\n";
-    if (std::find_if(sorted.begin(), sorted.end(), [](auto const& x) { return !x.second.SpecialName(); }) != sorted.end())
+    if (std::find_if(m_sorted.begin(), m_sorted.end(), [](auto const& x) { return !x.second.SpecialName(); }) != m_sorted.end())
     {
-      auto ms = ss.StartSection("Methods");
-      for (auto const& method : sorted) {
+      auto ms = ss.StartSection("Methods\n");
+      for (auto const& method : m_sorted) {
         if (method.second.SpecialName()) {
 #ifdef DEBUG
           std::cout << "Skipping special method: " << string(method.second.Name()) << "\n";
@@ -368,24 +406,10 @@ void Program::process_class(output& ss, const TypeDef& type, string kind) {
   ss << "\n";
   // Print events
   {
-    using entry_t = pair<string_view, const Event>;
-    std::list<entry_t> sorted;
-    for (auto const& evt : type.EventList()) {
-      if (!opts->outputExperimental && IsExperimental(evt)) continue;
-      sorted.push_back(make_pair<string_view, const Event>(evt.Name(), Event(evt)));
-    }
-    sorted.sort([](const entry_t& x, const entry_t& y) { return x.first < y.first; });
-
-    if (!sorted.empty()) {
-      auto es = ss.StartSection("Events");
-      for (auto const& evt : sorted) {
-        auto n = string(evt.first);
-        auto ees = ss.StartSection("`" + string(evt.first) + "`");
-        auto methodList = type.MethodList();
-        auto addMethod = FindMethodInType(type, "add_" + n);
-        PrintOptionalSections(MemberType::Event, ss, addMethod);
-        ss << "Type: " << format.ToString(evt.second.EventType()) << "\n";
-        AddReference(evt.second.EventType(), type);
+    if (!e_sorted.empty()) {
+      auto es = ss.StartSection("Events\n");
+      for (auto const& evt : e_sorted) {
+        process_event(ss, type, evt.second);
       }
     }
   }
@@ -441,9 +465,26 @@ void Program::AddReference(const TypeSig& prop, const TypeDef& owningType) {
   }
 }
 
-void Program::process_property(output& ss, const Property& prop) {
+void Program::process_event(output& ss, const TypeDef& classType, const Event& evt, bool asTable) {
+  auto eventName = string(evt.Name());
+  auto methodList = classType.MethodList();
+  auto addMethod = FindMethodInType(classType, "add_" + eventName);
+  auto doc = format.ResolveReferences(GetDocString(addMethod), &Formatter::MakeMarkdownReference);
+  if (asTable) {
+    auto summary = GetSummary(doc);
+    ss << format.MakeMarkdownReference("", "", eventName) << " | " << summary << "\n";
+  }
+  else {
+    auto sec = ss.StartSection(eventName + "\n");
+    PrintOptionalSections(MemberType::Event, ss, addMethod);
+    ss << "Type: " << format.ToString(evt.EventType()) << "\n\n";
+    AddReference(evt.EventType(), classType);
+  }
+}
+
+void Program::process_property(output& ss, const Property& prop, bool asTable) {
   const auto& type = format.GetType(prop.Type().Type());
-  const auto& name = code(prop.Name());
+  const auto& name = prop.Name();
 
   const auto& owningType = prop.Parent();
   const auto propName = string(prop.Name());
@@ -462,24 +503,28 @@ void Program::process_property(output& ss, const Property& prop) {
   }
 
   auto default_val = GetDocDefault(prop);
-  auto cppAttrs = (isStatic ? (code("static") + "   ") : "") + (readonly ? (code("readonly") + " ") : "");
-  if (opts->propertiesAsTable) {
-    auto description = GetDocString(prop);
-    description = format.ResolveReferences(description, &Formatter::MakeMarkdownReference);
+  string cppAttrs = (isStatic ? "static   " : "");
+  cppAttrs += (readonly ? "readonly " : "");
+  auto description = GetDocString(prop);
+  description = format.ResolveReferences(description, &Formatter::MakeMarkdownReference);
+  if (asTable) {
+    auto summary = GetSummary(description);
+    ss << format.MakeMarkdownReference("", "", propName) << " | " << summary << "\n";
+  } else if (opts->propertiesAsTable) {
     if (!default_val.empty()) {
       description += "<br/>default: " + default_val;
     }
-    ss << "| " << cppAttrs << "| " << name << " | " << type << " | " << description << " | \n";
+    ss << "| " << cppAttrs << "| " << code(name) << " | " << type << " | " << description << " | \n";
   }
   else {
-    auto sec = ss.StartSection(propName);
-    ss << cppAttrs << " " << type << " " << name << "\n\n";
+    auto sec = ss.StartSection(propName + "\n");
+    ss << "> " << cppAttrs << " " << type << " " << name << "\n\n";
     PrintOptionalSections(MemberType::Property, ss, prop, std::make_optional(getter));
 
   }
 }
 
-void Program::process_method(output& ss, const MethodDef& method, string_view realName) {
+void Program::process_method(output& ss, const MethodDef& method, string_view realName, bool asTable) {
   std::string returnType;
   const auto& signature = method.Signature();
   if (realName.empty()) {
@@ -496,10 +541,16 @@ void Program::process_method(output& ss, const MethodDef& method, string_view re
   }
   const auto& flags = method.Flags();
   const string_view name = realName.empty() ? method.Name() : realName;
+  const std::string method_name = string{ name };
+  if (asTable) {
+      auto summary = GetSummary(format.ResolveReferences(GetDocString(method), &Formatter::MakeMarkdownReference));
+      ss << format.MakeMarkdownReference("", "", method_name) << " | " << summary << "\n";
+    return;
+  }
   stringstream sstr;
-  sstr << (flags.Static() ? (code("static") + " ") : "")
+  sstr << "> " << (flags.Static() ? "static " : "")
     //    << (flags.Abstract() ? "abstract " : "")
-    << returnType << " **" << code(name) << "**(";
+    << returnType << " " << name << "(";
 
   int i = 0;
 
@@ -523,8 +574,7 @@ void Program::process_method(output& ss, const MethodDef& method, string_view re
     i++;
   }
   sstr << ")";
-  const std::string method_name = string{ name };
-  auto st = ss.StartSection(method_name);
+  auto st = ss.StartSection(method_name + "\n");
   ss << sstr.str() << "\n\n";
 
   PrintOptionalSections(MemberType::Method, ss, method);
@@ -690,10 +740,17 @@ void Program::write_index(string_view namespaceName, const cache::namespace_memb
 
   const auto apiVersionPrefix = (opts->apiVersion != "") ? ("version-" + opts->apiVersion + "-") : "";
 
+  // Adding ms metadata
   index << R"(---
-id: )" << apiVersionPrefix << R"(Native-API-Reference
-title: namespace )" << namespaceName << R"(
-sidebar_label: Full reference
+description: Explore all classes and interfaces of the Microsoft.Web.WebView2.Core namespace.
+title: Microsoft.Web.WebView2.Core Namespace
+author: MSEdgeTeam
+ms.author: msedgedevrel
+ms.date: )" << opts->msDate << R"(
+ms.topic: reference
+ms.prod: microsoft-edge
+ms.technology: webview
+keywords: IWebView2, IWebView2WebView, webview2, webview, winrt, Microsoft.Web.WebView2.Core, edge, ICoreWebView2, ICoreWebView2Controller, ICoreWebView2Interop, browser control, edge html
 )";
 
   if (opts->apiVersion != "") {
@@ -703,35 +760,36 @@ sidebar_label: Full reference
   index << R"(
 ---
 
+# Microsoft.Web.WebView2.Core Namespace
 )";
 
-  index << "## Enums" << "\n";
-  for (auto const& t : ns.enums) {
-    if (!opts->outputExperimental && IsExperimental(t)) continue;
-    index << link(t.TypeName()) << "\n";
-  }
-
-  index << "## Interfaces" << "\n";
-  for (auto const& t : ns.interfaces) {
-    if (!opts->outputExperimental && IsExperimental(t)) continue;
-    if (shouldSkipInterface(t)) continue;
-    index << link(t.TypeName()) << "\n";
-  }
-
-  index << "## Structs" << "\n";
-  for (auto const& t : ns.structs) {
-    if (!opts->outputExperimental && IsExperimental(t)) continue;
-    index << link(t.TypeName()) << "\n";
-  }
-
-  index << "## Classes" << "\n";
+  index << "\n## Classes\n\n";
 
   for (auto const& t : ns.classes) {
     if (!opts->outputExperimental && IsExperimental(t)) continue;
     index << link(t.TypeName()) << "\n";
   }
 
-  index << "## Delegates" << "\n";
+  index << "\n## Interfaces\n\n";
+  for (auto const& t : ns.interfaces) {
+    if (!opts->outputExperimental && IsExperimental(t)) continue;
+    if (shouldSkipInterface(t)) continue;
+    index << link(t.TypeName()) << "\n";
+  }
+
+  index << "\n## Enums\n\n";
+  for (auto const& t : ns.enums) {
+    if (!opts->outputExperimental && IsExperimental(t)) continue;
+    index << link(t.TypeName()) << "\n";
+  }
+
+  index << "\n## Structs\n\n";
+  for (auto const& t : ns.structs) {
+    if (!opts->outputExperimental && IsExperimental(t)) continue;
+    index << link(t.TypeName()) << "\n";
+  }
+
+  index << "\n## Delegates\n\n";
   for (auto const& t : ns.delegates) {
     if (!opts->outputExperimental && IsExperimental(t)) continue;
     index << link(t.TypeName()) << "\n";

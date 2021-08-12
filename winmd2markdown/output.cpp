@@ -1,5 +1,6 @@
 #include <sstream>
 #include <boost/algorithm/string/replace.hpp>
+#include <boost/algorithm/string/case_conv.hpp>
 
 #include "Options.h"
 
@@ -15,7 +16,7 @@ output::output(Program* p) : program(p) {
 
 filesystem::path output::GetFileForType(std::string_view name) {
   std::filesystem::path out(program->opts->outputDirectory);
-  const string filename = std::string(name) + program->opts->fileSuffix + ".md";
+  const string filename = boost::algorithm::to_lower_copy(std::string(name)) + program->opts->fileSuffix + ".md";
   if (!std::filesystem::exists(out)) {
     std::error_code ec;
     std::filesystem::create_directory(out, ec); // ignore ec
@@ -28,17 +29,30 @@ output::type_helper output::StartType(std::string_view name, std::string_view ki
   indents = 0;
   currentFile = std::move(GetOutputStream(GetFileForType(name)));
   const auto apiVersionPrefix = (program->opts->apiVersion != "") ? ("version-" + program->opts->apiVersion + "-") : "";
+  // Adding ms metadata
   *currentFile << "---\n" <<
-    "id: " << apiVersionPrefix << name << "\n" <<
-    "title: " << name << "\n";
+    "title: " << name << R"(
+author: MSEdgeTeam
+ms.author: msedgedevrel
+ms.date: )" << program->opts->msDate << R"(
+ms.topic: reference
+ms.prod: microsoft-edge
+ms.technology: webview
+keywords: webview2, webview, winrt, win32, edge, CoreWebView2, CoreWebView2Controller, browser control, edge html, )" <<
+    name << "\n";
 
   if (program->opts->apiVersion != "") {
     *currentFile << "original_id: " << name << "\n";
   }
 
   *currentFile << "---\n\n";
-  *currentFile << "Kind: " << code(kind) << "\n\n";
-  return type_helper(*this);
+  string header = string{ name };
+  if (kind == "class") {
+    header = "runtimeClass " + header;
+  } else {
+    header = string(kind) + " " + header;
+  }
+  return type_helper(*this, header);
 }
 
 output::section_helper output::StartSection(const std::string& a) {
@@ -53,7 +67,7 @@ output::section_helper::section_helper(output& out, string s) : o(out) {
   }
 }
 
-output::type_helper::type_helper(output& out) : o(out), sh(o.StartSection("")) {};
+output::type_helper::type_helper(output& out, std::string kind) : o(out), sh(o.StartSection(kind + "\n")) {};
 
 void output::StartNamespace(std::string_view namespaceName) {
   currentXml = intellisense_xml(namespaceName);

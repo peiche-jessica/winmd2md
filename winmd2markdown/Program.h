@@ -31,8 +31,9 @@ struct Program {
 private:
   void process_class(output& ss, const winmd::reader::TypeDef& type, std::string kind);
   void process_enum(output& ss, const winmd::reader::TypeDef& type);
-  void process_property(output& ss, const winmd::reader::Property& prop);
-  void process_method(output& ss, const winmd::reader::MethodDef& method, std::string_view realName = "");
+  void process_event(output& ss, const winmd::reader::TypeDef& classType, const winmd::reader::Event& evt, bool asTable = false);
+  void process_property(output& ss, const winmd::reader::Property& prop, bool asTable = false);
+  void process_method(output& ss, const winmd::reader::MethodDef& method, std::string_view realName = "", bool asTable = false);
   void process_field(output& ss, const winmd::reader::Field& field);
   void process_struct(output& ss, const winmd::reader::TypeDef& type);
   void process_delegate(output& ss, const winmd::reader::TypeDef& type);

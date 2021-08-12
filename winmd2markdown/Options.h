@@ -21,11 +21,12 @@ struct options
   bool help{ false };
   std::string sdkVersion;
   std::string winMDPath;
-  std::string fileSuffix{ "-api-windows" };
+  std::string fileSuffix{ "" };
   std::string outputDirectory{ "out" };
   bool printReferenceGraph{ false };
   std::string apiVersion;
   bool strictReferences{ false };
+  std::string msDate{ "<!--DATE-->" };
 
   options(const std::vector<std::string>& v) {
     auto const opts = get_option_names();

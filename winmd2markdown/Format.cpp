@@ -12,9 +12,11 @@ using namespace winmd::reader;
 string Formatter::MakeMarkdownReference(const string& ns, const string& type, const string& propertyName) {
   string anchor = type;
   string link = type;
+  std::transform(link.begin(), link.end(), link.begin(), ::tolower);
   if (ns != program->currentNamespace && !ns.empty()) {
-    return typeToMarkdown(ns, type + (!propertyName.empty() ? ("." + propertyName) : ""), true);
+    return typeToMarkdown(ns, type + (!propertyName.empty() ? ("." + propertyName) : ""), false);
   }
+  link += link.empty() ? "" : ".md";
   if (!propertyName.empty()) {
     anchor += (!type.empty() ? "." : "") + propertyName;
     auto p = propertyName;
@@ -31,10 +33,10 @@ string Formatter::MakeMarkdownReference(const string& ns, const string& type, co
     if (dot != -1) {
       auto ns = type.substr(0, dot);
       auto typeName = type.substr(dot + 1);
-      return typeToMarkdown(ns, typeName, true);
+      return typeToMarkdown(ns, typeName, false);
     }
   }
-  return "[" + code(anchor) + "](" + link + ")";
+  return "[" + anchor + "](" + link + ")";
 }
 
 string Formatter::MakeXmlReference(const string& ns, const string& type, const string& propertyName) {
@@ -48,7 +50,9 @@ std::string code(std::string_view v) {
 
 string link(string_view n) {
   //if (IsBuiltInType(n)) return string(n);
-  return "- [" + code(n) + "](" + string(n) + ")";
+  string link = string(n);
+  std::transform(link.begin(), link.end(), link.begin(), ::tolower);
+  return "- [" + string(n) + "](" + link + ".md)";
 }
 
 bool isIdentifierChar(char x) {
@@ -60,8 +64,15 @@ string Formatter::ResolveReferences(string sane, Converter converter) {
   stringstream ss;
 
   for (size_t input = 0; input < sane.length(); input++) {
+    // Reserve $ as a special end-of-reference charater
+    // It's useful when we have something like @TypeName$.NON_PROPERTY_NAME
+    // where NON_PROPERTY_NAME is not an anchor (e.g. @Enum.EnumValue where
+    // there's no anchor for Enumvalues)
+    if (sane[input] == '$') {
+      continue;
+    }
     if (sane[input] == '@') {
-      auto firstNonIdentifier = std::find_if(sane.begin() + input + 1, sane.end(), [](auto& x) { return !isIdentifierChar(x); });
+      auto firstNonIdentifier = std::find_if(sane.begin() + input + 1, sane.end(), [](auto& x) { return !isIdentifierChar(x) || x == '$'; });
       if (firstNonIdentifier != sane.begin() && *(firstNonIdentifier - 1) == '.') {
         firstNonIdentifier--;
       }
@@ -123,14 +134,17 @@ std::string Formatter::typeToMarkdown(std::string_view ns, std::string type, boo
   string code = toCode ? "`" : "";
   if (ns.empty()) return type; // basic type
   else if (ns == program->currentNamespace) {
-    return "[" + code + type + code + "](" + type + ")";
+    string link = type;
+    std::transform(link.begin(), link.end(), link.begin(), ::tolower);
+    return "[" + code + type + code + "](" + link + ".md)";
   }
   else {
     for (const auto& ns_prefix : docs_msft_com_namespaces) {
       if (ns._Starts_with(ns_prefix)) {
         // if it is a Windows type use MSDN, e.g.
         // https://docs.microsoft.com/uwp/api/Windows.UI.Xaml.Automation.ExpandCollapseState
-        const std::string docsURL = "https://docs.microsoft.com/uwp/api/";
+        // Use site relative url
+        const std::string docsURL = "/uwp/api/";
         return "[" + code + type + code + "](" + docsURL + string(ns) + "." + type + urlSuffix + ")";
       }
     }
@@ -169,7 +183,7 @@ string Formatter::ToString(const coded_index<TypeDefOrRef>& tdr, bool toCode) {
       const auto& ac = s.GenericArgCount();
       const auto& outerType = std::string(ToString(p, false));
       const auto& prettyOuterType = outerType.substr(1, outerType.find('`') - 1);
-      string result = typeToMarkdown(p.TypeRef().TypeNamespace(), prettyOuterType, true, "-" + std::to_string(ac)) + "<";
+      string result = typeToMarkdown(p.TypeRef().TypeNamespace(), prettyOuterType, false, "-" + std::to_string(ac)) + "&lt;";
 
       bool first = true;
       for (auto const& a : s.GenericArgs())
@@ -181,7 +195,7 @@ string Formatter::ToString(const coded_index<TypeDefOrRef>& tdr, bool toCode) {
         result += x;
         first = false;
       }
-      result += ">";
+      result += "&gt;";
       return result;
     }
     default:
@@ -214,7 +228,7 @@ string Formatter::GetType(const TypeSig::value_type& valueType)
     const auto& outerType = std::string(ToString(genericType, false));
     stringstream ss;
     const auto& prettyOuterType = outerType.substr(1, outerType.find('`') - 1);
-    ss << typeToMarkdown(genericType.TypeRef().TypeNamespace(), prettyOuterType, true, "-" + std::to_string(gt.GenericArgCount())) << '<';
+    ss << typeToMarkdown(genericType.TypeRef().TypeNamespace(), prettyOuterType, true, "-" + std::to_string(gt.GenericArgCount())) << "&lt;";
 
     bool first = true;
 
@@ -231,7 +245,7 @@ string Formatter::GetType(const TypeSig::value_type& valueType)
       // This indicates that we relied on a temporary that got deleted when chaining several calls
       throw std::invalid_argument("you found a bug - we probably deleted an object we shouldn't (when doing a.b().c().d())");
     }
-    ss << '>';
+    ss << "&gt;";
     return ss.str();
   }
   case 4: // GenericMethodTypeIndex
