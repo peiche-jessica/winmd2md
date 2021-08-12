@@ -38,5 +38,5 @@ jobs:
             ./x64/Release/winmd2md.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: asklar/winmd2md
+          GITHUB_REPOSITORY: peiche-jessica/winmd2md
           
