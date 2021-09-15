@@ -250,7 +250,13 @@ MethodDef FindMethodInType(const TypeDef& type, const std::string& name) {
 
 void Program::process_class(output& ss, const TypeDef& type, string kind) {
   const auto& className = string(type.TypeName());
-  const auto t = ss.StartType(className, kind);
+
+  // prepare description metadata
+  auto description = GetSummary(GetDocString(type));
+  // remove reference
+  boost::replace_all(description, "@", "");
+
+  const auto t = ss.StartType(className, kind, description);
 
   const auto& extends = format.ToString(type.Extends());
   if (!extends.empty() && extends != "System.Object") {
@@ -610,7 +616,10 @@ void Program::process_field(output& ss, const Field& field) {
 }
 
 void Program::process_struct(output& ss, const TypeDef& type) {
-  const auto t = ss.StartType(type.TypeName(), "struct");
+  auto description = GetSummary(GetDocString(type));
+  boost::replace_all(description, "@", "");
+  
+  const auto t = ss.StartType(type.TypeName(), "struct", description);
   PrintOptionalSections(MemberType::Type, ss, type);
 
   const auto fs = ss.StartSection("Fields");
@@ -681,7 +690,10 @@ T getVariantValueAs(const Constant::constant_type& ct) {
 }
 
 void Program::process_enum(output& ss, const TypeDef& type) {
-  auto t = ss.StartType(type.TypeName(), "enum");
+  auto description = GetSummary(GetDocString(type));
+  boost::replace_all(description, "@", "");
+
+  auto t = ss.StartType(type.TypeName(), "enum", description);
   PrintOptionalSections(MemberType::Type, ss, type);
 
   ss << "| Name |  Value | Description |\n" << "|--|--|--|\n";
@@ -744,12 +756,7 @@ void Program::write_index(string_view namespaceName, const cache::namespace_memb
   index << R"(---
 description: Explore all classes and interfaces of the Microsoft.Web.WebView2.Core namespace.
 title: Microsoft.Web.WebView2.Core Namespace
-author: MSEdgeTeam
-ms.author: msedgedevrel
 ms.date: )" << opts->msDate << R"(
-ms.topic: reference
-ms.prod: microsoft-edge
-ms.technology: webview
 keywords: IWebView2, IWebView2WebView, webview2, webview, winrt, Microsoft.Web.WebView2.Core, edge, ICoreWebView2, ICoreWebView2Controller, ICoreWebView2Interop, browser control, edge html
 )";
 
