@@ -43,11 +43,9 @@ keywords: webview2, webview, winrt, win32, edge, CoreWebView2, CoreWebView2Contr
 
   *currentFile << "---\n\n";
   string header = string{ name };
-  if (kind == "class") {
-    header = "runtimeClass " + header;
-  } else {
-    header = string(kind) + " " + header;
-  }
+  string kindName = string{ kind };
+  kindName[0] = toupper(kindName[0]);
+  header += " " + kindName;
   return type_helper(*this, header);
 }
 
