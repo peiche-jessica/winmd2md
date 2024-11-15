@@ -76,7 +76,7 @@ public:
   output(Program* p);
   std::shared_ptr<std::ostream> /*std::ofstream */ currentFile;
   intellisense_xml currentXml;
-  type_helper StartType(std::string_view name, std::string_view kind);
+  type_helper StartType(std::string_view name, std::string_view kind, std::string description = "", std::vector<std::string_view> members = {});
 
   section_helper StartSection(const std::string& a);
 

@@ -248,9 +248,65 @@ MethodDef FindMethodInType(const TypeDef& type, const std::string& name) {
   return {};
 }
 
+std::list<property_entry_t> Program::GetSortedProperties(const TypeDef& type) {
+  std::list<property_entry_t> p_sorted;
+  for (auto const& prop : type.PropertyList()) {
+    if (!opts->outputExperimental && IsExperimental(prop)) continue;
+    p_sorted.push_back(make_pair<string_view, const Property>(prop.Name(), Property(prop)));
+  }
+  p_sorted.sort([](const property_entry_t& x, const property_entry_t& y) { return x.first < y.first; });
+
+  return p_sorted;
+}
+
+std::list<method_entry_t> Program::GetSortedMethods(const TypeDef& type) {
+  std::list<method_entry_t> m_sorted;
+  for (auto const& method : type.MethodList()) {
+    if (!opts->outputExperimental && IsExperimental(method)) continue;
+    m_sorted.push_back(make_pair<string_view, const MethodDef>(method.Name(), MethodDef(method)));
+  }
+  m_sorted.sort([](const method_entry_t& x, const method_entry_t& y) { return x.first < y.first; });
+
+  return m_sorted;
+}
+
+std::list<event_entry_t> Program::GetSortedEvents(const TypeDef& type) {
+  std::list<event_entry_t> e_sorted;
+  for (auto const& event : type.EventList()) {
+    if (!opts->outputExperimental && IsExperimental(event)) continue;
+    e_sorted.push_back(make_pair<string_view, const Event>(event.Name(), Event(event)));
+  }
+  e_sorted.sort([](const event_entry_t& x, const event_entry_t& y) { return x.first < y.first; });
+
+  return e_sorted;
+}
+
 void Program::process_class(output& ss, const TypeDef& type, string kind) {
   const auto& className = string(type.TypeName());
-  const auto t = ss.StartType(className, kind);
+
+  // prepare description metadata
+  auto description = GetSummary(GetDocString(type));
+  // remove reference
+  boost::replace_all(description, "@", "");
+
+  std::list<property_entry_t> p_sorted = GetSortedProperties(type);
+  std::list<method_entry_t> m_sorted = GetSortedMethods(type);
+  std::list<event_entry_t> e_sorted = GetSortedEvents(type);
+
+  std::vector<std::string_view> members;
+  for (auto const& property : p_sorted) {
+    members.push_back(property.first);
+  }
+  for (auto const& method : m_sorted) {
+    if (!method.second.SpecialName()) {
+      members.push_back(method.first);
+    }
+  }
+  for (auto const& event : e_sorted) {
+    members.push_back(event.first);
+  }
+
+  const auto t = ss.StartType(className, kind, description, members);
 
   const auto& extends = format.ToString(type.Extends());
   if (!extends.empty() && extends != "System.Object") {
@@ -309,30 +365,6 @@ void Program::process_class(output& ss, const TypeDef& type, string kind) {
     ss << "\n\n";
   }
   PrintOptionalSections(MemberType::Type, ss, type);
-
-  using property_entry_t = pair<string_view, const Property>;
-  std::list<property_entry_t> p_sorted;
-  for (auto const& prop : type.PropertyList()) {
-    if (!opts->outputExperimental && IsExperimental(prop)) continue;
-    p_sorted.push_back(make_pair<string_view, const Property>(prop.Name(), Property(prop)));
-  }
-  p_sorted.sort([](const property_entry_t& x, const property_entry_t& y) { return x.first < y.first; });
-
-  using method_entry_t = pair<string_view, const MethodDef>;
-  std::list<method_entry_t> m_sorted;
-  for (auto const& method : type.MethodList()) {
-    if (!opts->outputExperimental && IsExperimental(method)) continue;
-    m_sorted.push_back(make_pair<string_view, const MethodDef>(method.Name(), MethodDef(method)));
-  }
-  m_sorted.sort([](const method_entry_t& x, const method_entry_t& y) { return x.first < y.first; });
-
-  using event_entry_t = pair<string_view, const Event>;
-  std::list<event_entry_t> e_sorted;
-  for (auto const& evt : type.EventList()) {
-    if (!opts->outputExperimental && IsExperimental(evt)) continue;
-    e_sorted.push_back(make_pair<string_view, const Event>(evt.Name(), Event(evt)));
-  }
-  e_sorted.sort([](const event_entry_t& x, const event_entry_t& y) { return x.first < y.first; });
 
   // Print summary section
   {
@@ -558,8 +590,7 @@ void Program::process_method(output& ss, const MethodDef& method, string_view re
   for (auto const& p : method.ParamList()) {
     paramNames.push_back(p.Name());
   }
-  constexpr auto resultParamName = "result";
-  if (!paramNames.empty() && paramNames[0] == resultParamName) {
+  if (!paramNames.empty() && realName.empty() && returnType != "void") {
     paramNames.erase(paramNames.begin());
   }
 
@@ -610,7 +641,10 @@ void Program::process_field(output& ss, const Field& field) {
 }
 
 void Program::process_struct(output& ss, const TypeDef& type) {
-  const auto t = ss.StartType(type.TypeName(), "struct");
+  auto description = GetSummary(GetDocString(type));
+  boost::replace_all(description, "@", "");
+  
+  const auto t = ss.StartType(type.TypeName(), "struct", description);
   PrintOptionalSections(MemberType::Type, ss, type);
 
   const auto fs = ss.StartSection("Fields");
@@ -681,7 +715,10 @@ T getVariantValueAs(const Constant::constant_type& ct) {
 }
 
 void Program::process_enum(output& ss, const TypeDef& type) {
-  auto t = ss.StartType(type.TypeName(), "enum");
+  auto description = GetSummary(GetDocString(type));
+  boost::replace_all(description, "@", "");
+
+  auto t = ss.StartType(type.TypeName(), "enum", description);
   PrintOptionalSections(MemberType::Type, ss, type);
 
   ss << "| Name |  Value | Description |\n" << "|--|--|--|\n";
@@ -744,12 +781,7 @@ void Program::write_index(string_view namespaceName, const cache::namespace_memb
   index << R"(---
 description: Explore all classes and interfaces of the Microsoft.Web.WebView2.Core namespace.
 title: Microsoft.Web.WebView2.Core Namespace
-author: MSEdgeTeam
-ms.author: msedgedevrel
 ms.date: )" << opts->msDate << R"(
-ms.topic: reference
-ms.prod: microsoft-edge
-ms.technology: webview
 keywords: IWebView2, IWebView2WebView, webview2, webview, winrt, Microsoft.Web.WebView2.Core, edge, ICoreWebView2, ICoreWebView2Controller, ICoreWebView2Interop, browser control, edge html
 )";
 

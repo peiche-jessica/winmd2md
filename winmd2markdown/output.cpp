@@ -24,22 +24,32 @@ filesystem::path output::GetFileForType(std::string_view name) {
   return out / filename;
 }
 
-output::type_helper output::StartType(std::string_view name, std::string_view kind) {
+output::type_helper output::StartType(std::string_view name, std::string_view kind, std::string description, std::vector<std::string_view> members) {
   EndType();
   indents = 0;
   currentFile = std::move(GetOutputStream(GetFileForType(name)));
   const auto apiVersionPrefix = (program->opts->apiVersion != "") ? ("version-" + program->opts->apiVersion + "-") : "";
   // Adding ms metadata
   *currentFile << "---\n" <<
+    "description: " << description << "\n" <<
     "title: " << name << R"(
-author: MSEdgeTeam
-ms.author: msedgedevrel
 ms.date: )" << program->opts->msDate << R"(
-ms.topic: reference
-ms.prod: microsoft-edge
-ms.technology: webview
 keywords: webview2, webview, winrt, win32, edge, CoreWebView2, CoreWebView2Controller, browser control, edge html, )" <<
-    name << "\n";
+    name << R"(
+topic_type:
+- APIRef
+api_type:
+- Assembly
+api_location:
+- Microsoft.Web.WebView2.Core.dll
+api_name:
+- )" << name << "\n";
+
+    if (members.size() > 0) {
+      for (const auto& member : members) {
+        *currentFile << "- " << name << "." << member << "\n";
+      }
+    }
 
   if (program->opts->apiVersion != "") {
     *currentFile << "original_id: " << name << "\n";
@@ -47,11 +57,9 @@ keywords: webview2, webview, winrt, win32, edge, CoreWebView2, CoreWebView2Contr
 
   *currentFile << "---\n\n";
   string header = string{ name };
-  if (kind == "class") {
-    header = "runtimeClass " + header;
-  } else {
-    header = string(kind) + " " + header;
-  }
+  string kindName = string{ kind };
+  kindName[0] = toupper(kindName[0]);
+  header += " " + kindName;
   return type_helper(*this, header);
 }
 

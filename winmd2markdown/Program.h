@@ -7,6 +7,10 @@
 #include "output.h"
 #include "Format.h"
 
+using property_entry_t = std::pair<std::string_view, const winmd::reader::Property>;
+using method_entry_t = std::pair<std::string_view, const winmd::reader::MethodDef>;
+using event_entry_t = std::pair<std::string_view, const winmd::reader::Event>;
+
 struct Program {
   std::string currentNamespace;
   static constexpr std::string_view ObjectClassName = "Object"; // corresponds to IInspectable in C++/WinRT
@@ -55,4 +59,8 @@ private:
   std::string GetDeprecated(const T& type, Converter converter);
 
   Formatter format;
+
+  std::list<property_entry_t> GetSortedProperties(const winmd::reader::TypeDef& type);
+  std::list<method_entry_t> GetSortedMethods(const winmd::reader::TypeDef& type);
+  std::list<event_entry_t> GetSortedEvents(const winmd::reader::TypeDef& type);
 };
